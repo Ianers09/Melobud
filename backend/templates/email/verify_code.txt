@@ -1,0 +1,15 @@
+{% autoescape off %}Verify your email address
+
+Hello{% if username %} {{ username }}{% endif %},
+
+Thank you for creating a Melobud account. Use the verification code below to complete your registration.
+
+Verification code: {{ code }}
+
+This code expires in {{ minutes }} minutes and can be used only once. For your security, do not share this code with anyone.
+
+If you did not create a Melobud account, you can safely ignore this email.
+
+---
+This is an automated message from Melobud. Please do not reply to this email.
+{% endautoescape %}

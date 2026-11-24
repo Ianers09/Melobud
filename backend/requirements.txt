@@ -1,0 +1,41 @@
+# Melobud backend — Python 3.11 (3.10–3.12 supported by PyTorch + librosa).
+#
+# PyTorch is installed separately so you can pick CPU or CUDA:
+#   NVIDIA GPU (CUDA 12.6):  pip install torch==2.14.1 torchaudio==2.11.0 --index-url https://download.pytorch.org/whl/cu126
+#   CPU only:                pip install torch==2.14.1 torchaudio==2.11.0 --index-url https://download.pytorch.org/whl/cpu
+
+# Web / API
+Django==5.2.19
+djangorestframework==3.18.3
+django-cors-headers==4.9.0
+dj-database-url==3.1.2
+psycopg[binary]==3.3.9
+python-dotenv==1.2.4
+gunicorn==23.0.0
+whitenoise==6.9.0
+
+# Background jobs
+celery==5.7.0
+redis==8.1.0
+
+# Audio engine
+numpy==2.4.6
+scipy==1.17.1
+librosa==0.11.0
+soundfile==0.14.0
+soxr==1.1.0
+mutagen==1.48.1
+PyYAML==6.0.4
+mir_eval==0.8.2            # imported by BTC's utils.mir_eval_modules
+# Beat This! (CPJKU, ISMIR 2024) — beat + downbeat tracking, MIT licence
+beat-this @ git+https://github.com/CPJKU/beat_this.git@v1.1.0
+einops==0.8.2
+rotary-embedding-torch==0.9.2
+
+# Essentia (optional, Linux/macOS/WSL only — no Windows wheel). When present it
+# is used for key estimation; otherwise librosa is used.
+# essentia==2.1b6.dev1110
+
+# Tests
+pytest==9.2.0
+pytest-django==4.14.0

@@ -1,0 +1,9 @@
+{% extends "email/base.html" %}
+{% block content %}
+<h1 style="margin:0 0 16px 0;font-size:22px;font-weight:700;letter-spacing:-0.01em;color:#18181b;">Verify your email address</h1>
+<p style="margin:0 0 16px 0;">Hello{% if username %} {{ username }}{% endif %},</p>
+<p style="margin:0 0 24px 0;">Thank you for creating a Melobud account. Use the verification code below to complete your registration.</p>
+<p style="margin:0 0 24px 0;font-family:'SFMono-Regular',Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:0.35em;background:#f4f4f5;border-radius:8px;padding:16px 0;text-align:center;color:#18181b;">{{ code }}</p>
+<p style="margin:0 0 16px 0;color:#52525b;">This code expires in {{ minutes }} minutes and can be used only once. For your security, do not share this code with anyone.</p>
+<p style="margin:0;color:#52525b;">If you did not create a Melobud account, you can safely ignore this email.</p>
+{% endblock %}
