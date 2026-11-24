@@ -9,6 +9,10 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health/
     envVars:
+      # Ping itself every 10 minutes so the free instance does not sleep (15-minute idle limit).
+      # Set to "false" to let it sleep and save free instance hours.
+      - key: KEEP_AWAKE
+        value: "true"
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DATABASE_URL

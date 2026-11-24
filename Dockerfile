@@ -34,4 +34,4 @@ RUN DJANGO_SECRET_KEY=build-only python manage.py collectstatic --noinput
 
 ENV ANALYSIS_IN_SUBPROCESS=true AUDIO_DEVICE=cpu
 EXPOSE 10000
-CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-10000} --workers 1 --threads 4 --timeout 120"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn -c gunicorn.conf.py config.wsgi:application"]

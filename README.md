@@ -123,7 +123,11 @@ everything from Django on one origin) and a `render.yaml` Blueprint.
 The Blueprint uses Render's **free** plan, which is suitable for demonstrations only: it has 512 MB of
 memory (analysis needs about 1.2 GB, so it will usually fail with a clear message instead of crashing
 the site), no persistent disk (uploaded MP3s are erased on each restart or deploy), and the service
-sleeps after 15 minutes without traffic. For full use, switch the service to **Standard** (2 GB) and
+would normally sleep after 15 minutes without traffic. Melobud keeps it awake: the server pings its own
+`/api/health/` every 10 minutes (`KEEP_AWAKE=true`, see `backend/gunicorn.conf.py`), and a GitHub Actions
+workflow (`.github/workflows/keep-awake.yml`) pings it every 10 minutes as a backup that also wakes it
+after a restart — set the repository variable `RENDER_URL` to the service URL to enable it. An
+always-on service uses about 730 of the workspace's 750 free instance hours per month. For full use, switch the service to **Standard** (2 GB) and
 attach a disk mounted at `/app/backend/media`. Email uses Brevo's port 2525 because Render's free plan
 blocks the standard SMTP ports.
 
