@@ -1,0 +1,7 @@
+# Normalize line endings (Windows checkout, Linux build on Render)
+* text=auto
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.pt binary
+*.mp3 binary
+*.png binary
