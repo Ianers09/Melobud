@@ -10,6 +10,13 @@ export function usePlayerKeys(player, { onPrevChord, onNextChord } = {}) {
         player.toggle()
       } else if (e.key === 'ArrowLeft') player.skip(-5)
       else if (e.key === 'ArrowRight') player.skip(5)
+      else if (e.key === 'ArrowUp' && player.changeVolume) {
+        e.preventDefault()
+        player.changeVolume(0.05)
+      } else if (e.key === 'ArrowDown' && player.changeVolume) {
+        e.preventDefault()
+        player.changeVolume(-0.05)
+      } else if (e.key === 'm' || e.key === 'M') player.toggleMute?.()
       else if (e.key === '[') onPrevChord?.()
       else if (e.key === ']') onNextChord?.()
     }

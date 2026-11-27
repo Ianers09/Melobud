@@ -64,3 +64,12 @@ export function nameFromUser(user) {
   if (!user) return ''
   return user.display_name || (user.username ? user.username : user.email.split('@')[0])
 }
+
+export const MODE_LABEL = { step: 'Step-by-step', play_along: 'Play-along' }
+
+/** Accuracy (0-100, rounded) from { correct, incorrect, missed }, or null if nothing was judged. */
+export function accuracyOf(attempts) {
+  const { correct = 0, incorrect = 0, missed = 0 } = attempts || {}
+  const total = correct + incorrect + missed
+  return total ? Math.round((correct / total) * 100) : null
+}

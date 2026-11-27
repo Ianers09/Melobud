@@ -215,7 +215,7 @@ export default function UsersTab() {
         />
       )}
       <ConfirmDialog open={!!deleting} title="Delete this user?" confirmLabel="Delete user" busy={busy} onConfirm={remove} onCancel={() => setDeleting(null)}>
-        <strong className="text-ink">{deleting?.username || deleting?.email}</strong> and all of their songs, audio files and practice history will be
+        <strong className="text-ink">{deleting?.username || deleting?.email}</strong> and all of their songs, audio files and sessions will be
         permanently deleted. This action cannot be undone.
       </ConfirmDialog>
     </section>

@@ -68,6 +68,13 @@ describe('chord detector', () => {
     expect(red / total).toBeGreaterThanOrEqual(0.95)
   })
 
+  it('spells the detected chord like the expected one', () => {
+    // Bb played, Bbm expected: same root, shown with the song's spelling.
+    expect(judgeStrum(strum('Bb', { seed: 3 }), 48000, 'Bbm')).toEqual({ status: 'incorrect', detected: 'Bb' })
+    expect(judgeStrum(strum('Bb', { seed: 3 }), 48000, 'A#m')).toEqual({ status: 'incorrect', detected: 'A#' })
+    expect(judgeStrum(strum('Bb', { seed: 3 }), 48000, 'A#')).toEqual({ status: 'correct', detected: 'A#' })
+  })
+
   it('treats a 7th chord as its beginner triad', () => {
     expect(judgeStrum(strum('G7'), 48000, 'G').status).toBe('correct')
   })

@@ -240,7 +240,7 @@ export default function SettingsPage() {
         <Card
           danger
           title="Delete account"
-          description="Permanently delete your account, songs, analyses, and practice history. This action cannot be undone."
+          description="Permanently delete your account, songs, analyses, and sessions. This action cannot be undone."
           footer={
             <Button variant="danger" onClick={() => setDeleteOpen(true)}>
               Delete account

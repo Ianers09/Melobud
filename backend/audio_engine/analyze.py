@@ -10,7 +10,7 @@ from . import beats as beat_tracking
 from . import chords
 from . import tonal
 from .btc import BTCRecognizer, get_recognizer
-from .smoothing import ensemble_majmin, probs_to_segments, snap_to_beats
+from .smoothing import ensemble_majmin, key_from_chords, probs_to_segments, rare_outside_key_prior, snap_to_beats, song_vocabulary_prior
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def load_audio(path, sr=BTCRecognizer.SAMPLE_RATE):
     return (wav / peak * 0.95).astype(np.float32)
 
 
-DEFAULT_VARIANT = "tuning+snap"
+DEFAULT_VARIANT = "tuning+snap+vocab+key"
 
 
 def analyze_file(path, progress=lambda pct, msg: None) -> AnalysisResult:
@@ -69,7 +69,7 @@ def analyze_signal(wav, progress=lambda pct, msg: None, variant=None) -> Analysi
     """Full analysis of a decoded 22.05 kHz mono signal.
 
     `variant` selects optional refinements (used by the evaluation script):
-    any combination of "tuning", "snap" and "ensemble" joined with "+".
+    any combination of "tuning", "snap", "ensemble", "vocab" and "key" joined with "+".
     """
     variant = variant or DEFAULT_VARIANT
     opts = set(variant.split("+"))
@@ -84,7 +84,6 @@ def analyze_signal(wav, progress=lambda pct, msg: None, variant=None) -> Analysi
         tuning = tonal.estimate_tuning_cents(wav, sr)
     except Exception:  # noqa: BLE001 - supplementary; chords are still valid
         logger.exception("Key/tuning estimation failed; continuing")
-    spelling = chords.spelling_for_key(*key) if key else None
 
     progress(25, "Recognizing chords")
     recognizer = get_recognizer(large_vocabulary=True)
@@ -95,6 +94,17 @@ def analyze_signal(wav, progress=lambda pct, msg: None, variant=None) -> Analysi
     if "ensemble" in opts:
         majmin = get_recognizer(large_vocabulary=False).predict(wav, tuning=cqt_tuning)
         probs = ensemble_majmin(probs, output.labels, majmin.probs, majmin.labels)
+    if "vocab" in opts:
+        probs = song_vocabulary_prior(probs, output.labels)
+    # The key is read from the chords themselves (the key whose triads cover the
+    # song): far more reliable than the audio key profile, which often lands a
+    # fifth away or on the relative key (synthetic benchmark: 20/24 vs 7/24).
+    chord_key = key_from_chords(probs, output.labels)
+    if chord_key:
+        key, key_source = chord_key, "chords"
+    if "key" in opts and key:
+        probs = rare_outside_key_prior(probs, output.labels, key)
+    spelling = chords.spelling_for_key(*key) if key else None
 
     progress(55, "Refining chord changes")
     segments = probs_to_segments(probs, output.frame_seconds, output.labels, duration=duration, spelling=spelling)

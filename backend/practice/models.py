@@ -7,10 +7,10 @@ from songs.models import Song
 class PracticeSession(models.Model):
     MODE_STEP = "step"
     MODE_PLAY_ALONG = "play_along"
-    MODE_CHOICES = [(MODE_STEP, "Chord by chord"), (MODE_PLAY_ALONG, "Play along")]
+    MODE_CHOICES = [(MODE_STEP, "Step-by-step"), (MODE_PLAY_ALONG, "Play-along")]
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="practice_sessions")
-    # Sessions outlive deleted songs so history isn't silently rewritten.
+    # Sessions outlive deleted songs so past results are not silently rewritten.
     song = models.ForeignKey(Song, on_delete=models.SET_NULL, null=True, blank=True, related_name="practice_sessions")
     song_title = models.CharField(max_length=200)
     song_artist = models.CharField(max_length=200, blank=True)

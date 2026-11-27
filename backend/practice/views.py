@@ -111,14 +111,14 @@ class SessionDetailView(APIView):
 class AttemptSerializer(serializers.Serializer):
     song_time = serializers.FloatField(min_value=0)
     expected = serializers.CharField(max_length=24)
-    detected = serializers.CharField(max_length=24, allow_blank=True, required=False)
+    detected = serializers.CharField(max_length=24, allow_blank=True, allow_null=True, required=False)
     result = serializers.ChoiceField(
         choices=[PracticeAttempt.RESULT_CORRECT, PracticeAttempt.RESULT_INCORRECT, PracticeAttempt.RESULT_MISSED]
     )
 
 
 class AttemptView(APIView):
-    """Store one strum judged in the browser (real-time recognition runs client-side)."""
+    """Store one chord's result, judged in the browser (real-time recognition runs client-side)."""
 
     throttle_scope = "live_eval"
 
@@ -137,7 +137,7 @@ class AttemptView(APIView):
         PracticeAttempt.objects.create(
             session=session,
             expected_chord=data["expected"],
-            detected_chord=data.get("detected", ""),
+            detected_chord=data.get("detected") or "",
             result=data["result"],
             song_time=round(data["song_time"], 3),
         )
@@ -182,6 +182,14 @@ class DashboardView(APIView):
                 minutes[day] += s.duration_seconds / 60.0
 
         totals = {"sessions": len(sessions), "practice_seconds": round(sum(s.duration_seconds for s in sessions))}
+        # Accuracy over every judged attempt (correct / correct + incorrect + missed).
+        judged = correct = 0
+        for s in sessions:
+            for a in s.attempts.all():
+                if a.result in ("correct", "incorrect", "missed"):
+                    judged += 1
+                    correct += a.result == "correct"
+        totals["accuracy"] = round(correct / judged, 4) if judged else None
         return Response(
             {
                 "songs": counts,
@@ -193,6 +201,7 @@ class DashboardView(APIView):
                     }
                     for s in recently_practiced
                 ],
+                "recent_sessions": [session_summary(s) for s in sessions[:5]],
                 "activity": [{"date": d.isoformat(), "minutes": round(minutes[d], 1)} for d in days],
                 "totals": totals,
             }

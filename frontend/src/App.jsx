@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { Logo } from './components/Logo'
 import { Button, Spinner } from './components/ui'
 import { useAuth } from './contexts/AuthContext'
@@ -10,16 +10,14 @@ import RegisterPage from './pages/auth/RegisterPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import VerifyPage from './pages/auth/VerifyPage'
 import DashboardPage from './pages/DashboardPage'
-import HistoryPage from './pages/HistoryPage'
-import LibraryPage from './pages/LibraryPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PlayerPage from './pages/PlayerPage'
 import PracticePage from './pages/PracticePage'
-import PracticePickerPage from './pages/PracticePickerPage'
 import SessionDetailPage from './pages/SessionDetailPage'
+import SessionsPage from './pages/SessionsPage'
 import SettingsPage from './pages/SettingsPage'
 import SongDetailPage from './pages/SongDetailPage'
-import UploadPage from './pages/UploadPage'
+import SongsPage from './pages/SongsPage'
 import AdminPage from './pages/admin/AdminPage'
 
 function Splash({ error, onRetry }) {
@@ -50,6 +48,11 @@ function RequireStaff() {
   return user?.is_staff ? <Outlet /> : <NotFoundPage />
 }
 
+function LegacySessionRedirect() {
+  const { id } = useParams()
+  return <Navigate to={`/sessions/${id}`} replace />
+}
+
 function GuestOnly() {
   const { user } = useAuth()
   return user ? <Navigate to="/" replace /> : <Outlet />
@@ -74,14 +77,18 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
-          <Route path="/library" element={<LibraryPage />} />
-          <Route path="/upload" element={<UploadPage />} />
+          <Route path="/songs" element={<SongsPage />} />
+          {/* Former pages, merged into Songs. */}
+          <Route path="/library" element={<Navigate to="/songs" replace />} />
+          <Route path="/practice" element={<Navigate to="/songs" replace />} />
+          <Route path="/upload" element={<Navigate to="/songs?add=1" replace />} />
           <Route path="/songs/:id" element={<SongDetailPage />} />
           <Route path="/songs/:id/play" element={<PlayerPage />} />
           <Route path="/songs/:id/practice" element={<PracticePage />} />
-          <Route path="/practice" element={<PracticePickerPage />} />
-          <Route path="/history" element={<HistoryPage />} />
-          <Route path="/history/:id" element={<SessionDetailPage />} />
+          <Route path="/sessions" element={<SessionsPage />} />
+          <Route path="/sessions/:id" element={<SessionDetailPage />} />
+          <Route path="/history" element={<Navigate to="/sessions" replace />} />
+          <Route path="/history/:id" element={<LegacySessionRedirect />} />
           <Route path="/profile" element={<Navigate to="/settings" replace />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route element={<RequireStaff />}>

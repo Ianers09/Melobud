@@ -1,16 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronUp, Guitar, History, House, Library, LogOut, Settings, ShieldCheck, Upload, UserRound } from 'lucide-react'
+import { ChevronUp, ClipboardList, LayoutDashboard, LogOut, Music, Settings, ShieldCheck, UserRound } from 'lucide-react'
 import { Logo } from '../components/Logo'
 import { useAuth } from '../contexts/AuthContext'
 import { nameFromUser } from '../utils/format'
 
 const NAV = [
-  { to: '/', label: 'Home', icon: House, end: true },
-  { to: '/library', label: 'Library', icon: Library },
-  { to: '/upload', label: 'Upload', icon: Upload },
-  { to: '/practice', label: 'Practice', icon: Guitar },
-  { to: '/history', label: 'History', icon: History },
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/songs', label: 'Songs', icon: Music },
+  { to: '/sessions', label: 'Sessions', icon: ClipboardList },
 ]
 
 function SideLink({ item }) {
@@ -114,7 +112,7 @@ export default function AppLayout() {
         </nav>
         {user?.is_staff && (
           <nav aria-label="Administration" className="mt-6 flex flex-col gap-0.5">
-            <p className="eyebrow mb-1 px-3">Admin</p>
+            <p className="eyebrow mb-1 px-3">Administration</p>
             <SideLink item={ADMIN_ITEM} />
           </nav>
         )}
@@ -145,7 +143,7 @@ export default function AppLayout() {
         </div>
       </main>
 
-      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {NAV.map((item) => {
           const Icon = item.icon
           return (

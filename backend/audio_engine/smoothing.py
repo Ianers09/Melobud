@@ -141,7 +141,7 @@ def ensemble_majmin(large_probs, large_labels, majmin_probs, majmin_labels, weig
 
     Each large-vocabulary class in a major or minor family is scaled by how much
     more (or less) the 25-class model believes in that family, raised to
-    `weight`. Other qualities (sus, dim, aug) are left unchanged."""
+    `weight`. Other qualities (dim, aug) are left unchanged."""
     n = min(len(large_probs), len(majmin_probs))
     large = large_probs[:n].astype(np.float64)
     mm = majmin_probs[:n].astype(np.float64)
@@ -165,5 +165,100 @@ def ensemble_majmin(large_probs, large_labels, majmin_probs, majmin_labels, weig
     return out.astype(np.float32)
 
 
+def song_vocabulary_prior(probs, labels, strength=1.0):
+    """Favour the chords this song actually uses on each root.
+
+    The model sometimes hears a weak stretch of the song's A chord as Am (or
+    Asus2). Across the whole song, each beginner family's share of its root
+    (e.g. A major 90%, A minor 10%) is used as a prior: every class is scaled by
+    share ** `strength`. A chord the song uses as much as its sibling (C and Cm
+    in a song that really plays both) is barely affected, and a confident
+    chord still wins; only doubtful stretches of a rare variant flip.
+    """
+    fams = [chords.family(label) for label in labels]
+    keys = list(dict.fromkeys(fams))
+    index = np.array([keys.index(f) for f in fams])
+    matrix = np.zeros((len(labels), len(keys)))
+    matrix[np.arange(len(labels)), index] = 1.0
+    mass = (probs @ matrix).mean(axis=0)
+    root_total = {}
+    for k, (root, quality) in enumerate(keys):
+        if quality is not None:
+            root_total[root] = root_total.get(root, 0.0) + mass[k]
+    share = np.array(
+        [mass[k] / root_total[root] if quality is not None and root_total[root] > 0 else 1.0 for k, (root, quality) in enumerate(keys)]
+    )
+    out = probs * np.maximum(share[index], 1e-6) ** strength
+    out /= out.sum(axis=1, keepdims=True)
+    return out.astype(np.float32)
 
 
+# Triads that belong to a key, as (semitones above the tonic, quality).
+DIATONIC = {
+    "major": {(0, "maj"), (2, "min"), (4, "min"), (5, "maj"), (7, "maj"), (9, "min")},
+    # Natural minor plus the major V of harmonic minor.
+    "minor": {(0, "min"), (3, "maj"), (5, "min"), (7, "min"), (7, "maj"), (8, "maj"), (10, "maj")},
+}
+
+
+def _family_mass(probs, labels):
+    mass = {}
+    for k, fam in enumerate(chords.family(label) for label in labels):
+        if fam[1] in ("maj", "min"):
+            mass[fam] = mass.get(fam, 0.0) + float(probs[:, k].sum())
+    return mass
+
+
+def key_from_chords(probs, labels):
+    """The key whose triads cover most of the song's chords: (tonic, scale) or None.
+
+    More reliable than a key profile of the raw audio, which often lands a fifth
+    away or on the relative key. Between a major key and its relative minor
+    (same chords), the one whose tonic chord is heard more wins.
+    """
+    mass = _family_mass(probs, labels)
+    total = sum(mass.values())
+    if not total:
+        return None
+    best, best_score = None, -1.0
+    for t, tonic in enumerate(chords.ROOTS):
+        for scale in ("major", "minor"):
+            covered = sum(
+                v for (root, quality), v in mass.items()
+                if ((chords.ROOTS.index(root) - t) % 12, quality) in DIATONIC[scale]
+            )
+            tonic_mass = mass.get((tonic, "maj" if scale == "major" else "min"), 0.0)
+            score = covered / total + 0.5 * tonic_mass / total
+            if score > best_score:
+                best, best_score = (tonic, scale), score
+    return best
+
+
+def rare_outside_key_prior(probs, labels, key, max_share=0.02, factor=0.2):
+    """Discount chords that are both outside the song's key and rare in it.
+
+    A melody or lead line (a vocal note, a guitar fill) is often recognized as
+    a short chord that does not belong to the key, e.g. Eb in a song in F. A
+    real borrowed chord is used again and again, so it is kept; only families
+    that fill less than `max_share` of the song and are not diatonic are scaled
+    by `factor`. A chord the model is sure of can still win.
+    """
+    if not key:
+        return probs
+    tonic, scale = key
+    allowed = DIATONIC.get(scale)
+    if allowed is None or tonic not in chords.ROOTS:
+        return probs
+    fams = [chords.family(label) for label in labels]
+    mass = _family_mass(probs, labels)
+    total = sum(mass.values()) or 1.0
+    weights = np.ones(len(labels))
+    for k, (root, quality) in enumerate(fams):
+        if quality not in ("maj", "min"):
+            continue
+        interval = (chords.ROOTS.index(root) - chords.ROOTS.index(tonic)) % 12
+        if (interval, quality) not in allowed and mass.get((root, quality), 0.0) / total < max_share:
+            weights[k] = factor
+    out = probs * weights
+    out /= out.sum(axis=1, keepdims=True)
+    return out.astype(np.float32)

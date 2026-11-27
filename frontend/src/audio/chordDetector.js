@@ -9,8 +9,11 @@
 //      temperament (a slightly sharp/flat guitar is compensated)
 //   4. peaks folded into a 12-bin chroma
 //   5. cosine match against chord templates that include each note's first
-//      six harmonics (a strummed guitar's overtones are strong)
+//      six harmonics (a strummed guitar's overtones are strong), with a small
+//      bonus for chords whose root is the lowest strong note (the bass string)
 // The result is binary: the strummed chord matches the expected one or not.
+// When the expected chord scores almost as well as the winner (a string that
+// rang weakly, a slow strum), the player gets the benefit of the doubt.
 
 const ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 const FLAT_TO_SHARP = { Db: 'C#', Eb: 'D#', Gb: 'F#', Ab: 'G#', Bb: 'A#', Cb: 'B', Fb: 'E', 'E#': 'F', 'B#': 'C' }
@@ -31,9 +34,16 @@ const QUALITIES = {
   dim7: [0, 3, 6, 9],
   m7b5: [0, 3, 6, 10],
 }
-// Beginner families: 6ths and 7ths count as their major/minor triad.
-const FAMILY = { '': '', 6: '', 7: '', maj7: '', m: 'm', m6: 'm', m7: 'm', 'm(maj7)': 'm' }
+// Beginner families: 6ths, 7ths and sus chords count as their major/minor
+// triad (same rule as the song analysis: Asus2 is played as A).
+const FAMILY = { '': '', 6: '', 7: '', maj7: '', sus2: '', sus4: '', m: 'm', m6: 'm', m7: 'm', 'm(maj7)': 'm' }
 const HARMONICS = [1, 0.6, 0.4, 0.25, 0.18, 0.12]
+// Score bonus for a chord whose root is the bass note, and how close (in
+// cosine score) the expected chord must be to the winner to still count.
+// Tuned on simulated laptop-mic strums: right chords green 97.5% -> 99.1%,
+// wrong chords red 99.2% -> 98.8%.
+const BASS_BONUS = 0.04
+const BENEFIT_OF_DOUBT = 0.02
 
 export function parseChord(name) {
   if (!name || name === 'N.C.' || name === '?') return null
@@ -73,7 +83,7 @@ function cachedTemplate(chord) {
 }
 
 /** In-place iterative radix-2 FFT. re/im are Float64Arrays of length 2^k. */
-function fft(re, im) {
+export function fft(re, im) {
   const n = re.length
   for (let i = 1, j = 0; i < n; i++) {
     let bit = n >> 1
@@ -107,7 +117,12 @@ function fft(re, im) {
 }
 
 /** 12-bin chroma of a mono clip (tuning-compensated), or null if too quiet. */
-export function chromaOf(samples, sampleRate, { fftSize = 16384 } = {}) {
+export function chromaOf(samples, sampleRate, options) {
+  return analyse(samples, sampleRate, options)?.chroma ?? null
+}
+
+/** Chroma plus the pitch class of the lowest strong note (the bass), or null. */
+function analyse(samples, sampleRate, { fftSize = 16384 } = {}) {
   const n = Math.min(samples.length, fftSize)
   const re = new Float64Array(fftSize)
   const im = new Float64Array(fftSize)
@@ -135,7 +150,7 @@ export function chromaOf(samples, sampleRate, { fftSize = 16384 } = {}) {
       const c = Math.log(mag[k + 1] + 1e-12)
       const offset = (0.5 * (a - c)) / (a - 2 * b + c || 1e-12)
       const freq = (k + Math.max(-0.5, Math.min(0.5, offset))) * binHz
-      peaks.push({ midi: 69 + 12 * Math.log2(freq / 440), weight: mag[k] })
+      peaks.push({ midi: 69 + 12 * Math.log2(freq / 440), weight: mag[k], freq })
     }
   }
   if (!peaks.length) return null
@@ -150,9 +165,15 @@ export function chromaOf(samples, sampleRate, { fftSize = 16384 } = {}) {
   }
   const tuning = Math.atan2(s, c) / (2 * Math.PI)
 
+  const pitchClass = (p) => ((Math.round(p.midi - tuning) % 12) + 12) % 12
   const chroma = new Float64Array(12)
-  for (const p of peaks) chroma[(((Math.round(p.midi - tuning) % 12) + 12) % 12)] += p.weight
-  return chroma
+  for (const p of peaks) chroma[pitchClass(p)] += p.weight
+
+  // Bass: the lowest peak that is reasonably strong, if it is in the low register.
+  const strongest = Math.max(...peaks.map((p) => p.weight))
+  const low = peaks.find((p) => p.weight > strongest * 0.15)
+  const bass = low && low.freq < 330 ? pitchClass(low) : null
+  return { chroma, bass }
 }
 
 /**
@@ -177,23 +198,32 @@ export function isChordLike(chroma) {
 export function judgeStrum(samples, sampleRate, expectedName) {
   const expected = parseChord(expectedName)
   if (!expected) return null
-  const chroma = chromaOf(samples, sampleRate)
-  if (!chroma || !isChordLike(chroma)) return null
+  const analysis = analyse(samples, sampleRate)
+  if (!analysis || !isChordLike(analysis.chroma)) return null
+  const { chroma, bass } = analysis
   const norm = Math.hypot(...chroma)
   if (!norm) return null
-  const candidates = [...TRIADS]
-  if (!(expected.quality in FAMILY)) candidates.push(expected) // sus, dim, aug…
-  let best = null
-  let bestScore = -1
-  for (const cand of candidates) {
+  const scoreOf = (cand) => {
     const t = cachedTemplate(cand)
     let score = 0
     for (let i = 0; i < 12; i++) score += (chroma[i] / norm) * t[i]
+    return ROOTS.indexOf(cand.root) === bass ? score + BASS_BONUS : score
+  }
+  const candidates = [...TRIADS]
+  if (!(expected.quality in FAMILY)) candidates.push(expected) // dim, aug…
+  let best = null
+  let bestScore = -1
+  for (const cand of candidates) {
+    const score = scoreOf(cand)
     if (score > bestScore) {
       bestScore = score
       best = cand
     }
   }
-  const correct = familyKey(best) === familyKey(expected)
-  return { status: correct ? 'correct' : 'incorrect', detected: displayName(best) }
+  const target = candidates.find((c) => familyKey(c) === familyKey(expected))
+  const correct = familyKey(best) === familyKey(expected) || scoreOf(target) >= bestScore - BENEFIT_OF_DOUBT
+  if (correct) return { status: 'correct', detected: expectedName }
+  // Spell the detected root like the expected one (Db, not C#) when they match.
+  const detected = best.root === expected.root ? displayName(best).replace(/^[A-G][#b]?/, expectedName.match(/^[A-G][#b]?/)[0]) : displayName(best)
+  return { status: 'incorrect', detected }
 }

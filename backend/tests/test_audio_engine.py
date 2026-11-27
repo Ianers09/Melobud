@@ -4,7 +4,7 @@ from django.conf import settings
 
 from audio_engine import chords
 from audio_engine.beats import assess_meter
-from audio_engine.smoothing import probs_to_segments, viterbi
+from audio_engine.smoothing import key_from_chords, probs_to_segments, rare_outside_key_prior, song_vocabulary_prior, viterbi
 
 
 
@@ -18,8 +18,10 @@ from audio_engine.smoothing import probs_to_segments, viterbi
         ("D:7", "D7", "D"),
         ("E:min7", "Em7", "Em"),
         ("A#:maj", "Bb", "Bb"),
-        # No third: simplifying to major/minor would be wrong, so keep it.
-        ("D:sus4", "Dsus4", "Dsus4"),
+        # sus chords colour a major chord in pop: beginners play the triad.
+        ("D:sus4", "Dsus4", "D"),
+        ("A:sus2", "Asus2", "A"),
+        # No third and not a colour of a triad: keep the name.
         ("B:dim", "Bdim", "Bdim"),
         ("B:hdim7", "Bm7b5", "Bm7b5"),
         ("N", "N.C.", "N.C."),
@@ -61,6 +63,49 @@ def test_family_confidence_pools_extensions():
     seg = probs_to_segments(probs, 0.1, labels)[0]
     assert seg.label_raw == "G" and seg.simple == "G"
     assert seg.simple_confidence == pytest.approx(0.85, abs=1e-3)
+
+
+def test_song_vocabulary_prior_fixes_rare_doubtful_variant():
+    labels = ["A", "A:min", "E"]
+    probs = np.tile([0.85, 0.05, 0.10], (100, 1))  # the song plays A a lot...
+    probs[40:45] = [0.30, 0.60, 0.10]  # ...and one doubtful stretch looks like Am
+    out = song_vocabulary_prior(probs, labels)
+    assert (out[40:45].argmax(1) == 0).all()
+    assert np.allclose(out.sum(1), 1.0)
+
+
+def test_song_vocabulary_prior_keeps_chords_the_song_really_uses():
+    labels = ["C", "C:min", "G"]
+    probs = np.tile([0.1, 0.1, 0.8], (100, 1))
+    probs[:30] = [0.8, 0.1, 0.1]  # C for 30 frames
+    probs[30:60] = [0.1, 0.8, 0.1]  # Cm for 30 frames
+    out = song_vocabulary_prior(probs, labels)
+    assert (out[:30].argmax(1) == 0).all() and (out[30:60].argmax(1) == 1).all()
+
+
+def test_rare_chord_outside_the_key_is_discounted():
+    labels = ["F", "D#", "A#", "C"]
+    probs = np.tile([0.876, 0.004, 0.06, 0.06], (100, 1))
+    probs[10:12] = [0.25, 0.6, 0.1, 0.05]  # a lead line heard as Eb for a moment
+    out = rare_outside_key_prior(probs, labels, ("F", "major"))
+    assert (out[10:12].argmax(1) == 0).all()
+
+
+def test_borrowed_chord_used_throughout_is_kept():
+    labels = ["A", "G", "D"]
+    probs = np.tile([0.8, 0.1, 0.1], (100, 1))
+    probs[::4] = [0.1, 0.8, 0.1]  # G (bVII) on a quarter of the song
+    out = rare_outside_key_prior(probs, labels, ("A", "major"))
+    assert (out[::4].argmax(1) == 1).all()
+    assert rare_outside_key_prior(probs, labels, None) is probs
+
+
+def test_key_from_chords():
+    labels = ["G", "D", "E:min", "C", "A:min", "F"]
+    probs = np.tile([0.4, 0.2, 0.15, 0.2, 0.04, 0.01], (100, 1))  # I V vi IV in G
+    assert key_from_chords(probs, labels) == ("G", "major")
+    minor = np.tile([0.05, 0.05, 0.1, 0.3, 0.45, 0.05], (100, 1))  # Am-centred: A minor
+    assert key_from_chords(minor, labels) == ("A", "minor")
 
 
 def test_meter_assessment():

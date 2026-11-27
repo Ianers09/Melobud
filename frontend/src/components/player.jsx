@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { Metronome, Pause, Play, RotateCcw, RotateCw, SkipBack, SkipForward } from 'lucide-react'
+import { Metronome, Pause, Play, RotateCcw, RotateCw, SkipBack, SkipForward, Volume1, Volume2, VolumeX } from 'lucide-react'
 import { neighbours } from '../utils/timeline'
 import { formatTime } from '../utils/format'
 import { Segmented, Spinner } from './ui'
@@ -8,8 +8,10 @@ import { Segmented, Spinner } from './ui'
 export function ChordStage({ timeline, index, time, feedback, compact = false, showCountdown = true, row }) {
   const current = index >= 0 ? timeline[index] : null
   const around = index >= 0 ? neighbours(timeline, index) : { prev: null, next: timeline.find((s) => !s.noChord && s.start > time) || null }
-  // With a bar counter, previous/next follow the counter rows (a chord held
-  // for two bars shows itself as "next" during its first bar).
+  // With the bar counter, previous / next follow the bars: a chord that
+  // continues into the next bar is shown again as "next" (F held for two bars
+  // reads F → F), so the player knows exactly when to change. Without it,
+  // they are the neighbouring chord changes.
   const prev = row ? (row.prev ? { name: row.prev } : null) : around.prev
   const next = row ? (row.next ? { name: row.next, start: around.next?.start } : null) : around.next
   const untilNext = next ? Math.max(0, next.start - time) : null
@@ -187,6 +189,42 @@ export function TimelineStrip({ timeline, time, duration, onSeek }) {
   )
 }
 
+/** Mute button with a volume slider that slides out on hover or focus, like YouTube. */
+export function VolumeControl({ player }) {
+  const { volume, muted } = player
+  const shown = muted ? 0 : volume
+  const Icon = shown === 0 ? VolumeX : shown < 0.5 ? Volume1 : Volume2
+  const pct = Math.round(shown * 100)
+  return (
+    <div className="group flex items-center">
+      <button
+        type="button"
+        className="btn btn-ghost btn-icon"
+        onClick={player.toggleMute}
+        aria-label={shown === 0 ? 'Unmute' : 'Mute'}
+        title={shown === 0 ? 'Unmute (M)' : 'Mute (M)'}
+      >
+        <Icon size={18} />
+      </button>
+      <div className="w-0 overflow-hidden transition-[width] duration-200 ease-out group-hover:w-[84px] group-focus-within:w-[84px]">
+        <input
+          type="range"
+          className="range ml-1 w-[76px]"
+          min={0}
+          max={100}
+          step={1}
+          value={pct}
+          style={{ '--fill': `${pct}%` }}
+          onChange={(e) => player.setVolume(Number(e.target.value) / 100)}
+          aria-label="Volume"
+          aria-valuetext={`${pct}%`}
+          title={`Volume ${pct}% (↑ / ↓)`}
+        />
+      </div>
+    </div>
+  )
+}
+
 export function Transport({ player, onPrevChord, onNextChord }) {
   const { time, duration, playing, buffering, ready } = player
   const pct = duration ? (time / duration) * 100 : 0
@@ -209,7 +247,10 @@ export function Transport({ player, onPrevChord, onNextChord }) {
         />
         <span className="tabular w-12 text-[12.5px] text-ink-3">{formatTime(duration)}</span>
       </div>
-      <div className="flex items-center justify-center gap-1.5 sm:gap-2">
+      <div className="relative flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+        <div className="sm:absolute sm:left-0">
+          <VolumeControl player={player} />
+        </div>
         <button type="button" className="btn btn-ghost btn-icon" onClick={onPrevChord} aria-label="Previous chord" title="Previous chord ( [ )">
           <SkipBack size={18} />
         </button>

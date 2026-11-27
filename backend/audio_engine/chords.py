@@ -6,8 +6,11 @@ information that would make the result misleading:
 
 * 7th/6th extensions of major and minor triads collapse to the triad
   (Gmaj7 -> G, Am7 -> Am). The triad is a correct, playable subset.
-* sus2/sus4/dim/aug chords have no major/minor third, so calling them major or
-  minor would be wrong. They keep their own name in beginner mode.
+* sus2/sus4 collapse to the major triad (Asus2 -> A, Bsus4 -> B). In pop
+  songs they colour a major chord, and the model often reports them where the
+  band simply plays the triad. Full names still show the sus chord.
+* dim/aug chords keep their own name in beginner mode: calling them major or
+  minor would be wrong.
 """
 ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 # Guitarists usually read these as flats.
@@ -30,7 +33,7 @@ QUALITY_SUFFIX = {
     "sus2": "sus2",
     "sus4": "sus4",
 }
-MAJOR_FAMILY = {"maj", "maj6", "maj7", "7"}
+MAJOR_FAMILY = {"maj", "maj6", "maj7", "7", "sus2", "sus4"}
 MINOR_FAMILY = {"min", "min6", "min7", "minmaj7"}
 
 # Semitone intervals of each quality, used to build templates for live recognition.

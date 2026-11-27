@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, Guitar, Music, Play, Upload } from 'lucide-react'
-import { Button, ChordChips, EmptyState, ErrorState, StatusBadge } from '../components/ui'
+import { ArrowRight, ChevronRight, Guitar, Music, Play, Plus } from 'lucide-react'
+import { Button, EmptyState, ErrorState } from '../components/ui'
 import { useAuth } from '../contexts/AuthContext'
 import { useDocumentTitle, useResource } from '../hooks/useResource'
 import { practiceApi } from '../services/melobud'
-import { formatDuration, formatRelative, formatTime, greeting, nameFromUser } from '../utils/format'
+import { accuracyOf, formatDuration, formatRelative, greeting, MODE_LABEL, nameFromUser } from '../utils/format'
 
 function Stat({ label, value, hint }) {
   return (
@@ -48,31 +48,26 @@ function Activity({ days }) {
   )
 }
 
-function SongRow({ song, meta }) {
+function SessionRow({ session }) {
+  const accuracy = accuracyOf(session.attempts)
   return (
     <li>
-      <Link to={`/songs/${song.id}`} className="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-raised/60">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-raised text-ink-3">
-          <Music size={16} aria-hidden />
-        </span>
+      <Link to={`/sessions/${session.id}`} className="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-raised/60">
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[14px] font-semibold">{song.title}</span>
-          <span className="block truncate text-[12.5px] text-ink-3">{meta}</span>
-        </span>
-        {song.status === 'completed' ? (
-          <span className="hidden sm:block">
-            <ChordChips chords={song.chords?.simple} max={4} />
+          <span className="block truncate text-[14px] font-semibold">{session.song_title}</span>
+          <span className="block truncate text-[12.5px] text-ink-3">
+            {formatRelative(session.started_at)} · {MODE_LABEL[session.mode]} · {formatDuration(session.duration_seconds)}
           </span>
-        ) : (
-          <StatusBadge status={song.status} progress={song.progress} />
-        )}
+        </span>
+        <span className="tabular text-[14px] font-semibold">{accuracy == null ? <span className="text-[12.5px] font-normal text-ink-3">Not scored</span> : `${accuracy}%`}</span>
+        <ChevronRight size={16} className="text-ink-3" aria-hidden />
       </Link>
     </li>
   )
 }
 
 export default function DashboardPage() {
-  useDocumentTitle('Home')
+  useDocumentTitle('Dashboard')
   const { user } = useAuth()
   const { data, error, loading, reload } = useResource(({ signal }) => practiceApi.dashboard({ signal }), [], {
     pollMs: (d) => (d?.songs?.processing ? 4000 : null),
@@ -110,7 +105,7 @@ export default function DashboardPage() {
     )
   }
 
-  const { songs, recent_uploads: uploads, recently_practiced: practiced, activity, totals } = data
+  const { songs, recently_practiced: practiced, recent_sessions: sessions, activity, totals } = data
   const resume = practiced.find((p) => p.song?.status === 'completed')
 
   if (!songs.total) {
@@ -120,14 +115,14 @@ export default function DashboardPage() {
         <div className="panel">
           <EmptyState
             icon={Music}
-            title="Upload your first song"
+            title="Add your first song"
             action={
-              <Button to="/upload" variant="primary" icon={Upload}>
-                Upload an MP3
+              <Button to="/songs?add=1" variant="primary" icon={Plus}>
+                Add song
               </Button>
             }
           >
-            Melobud analyzes the recording, identifies its chords and beats, and synchronizes them with playback so you can play along.
+            Melobud identifies the chords and beats of an MP3 and shows them in time with the music, so you can follow along and get feedback on your playing.
           </EmptyState>
         </div>
       </>
@@ -138,13 +133,14 @@ export default function DashboardPage() {
     <>
       {header}
 
-      {resume && (
+      {resume ? (
         <section className="panel mb-6 flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
-            <p className="eyebrow mb-1.5">Continue practice</p>
+            <p className="eyebrow mb-1.5">Continue practicing</p>
             <p className="truncate font-display text-[20px] font-extrabold tracking-[-0.02em]">{resume.song.title}</p>
             <p className="mt-0.5 truncate text-[13px] text-ink-3">
-              {resume.song.artist ? `${resume.song.artist} · ` : ''}last practiced {formatRelative(resume.session.started_at)}
+              Last session {formatRelative(resume.session.started_at)}
+              {accuracyOf(resume.session.attempts) != null && ` · ${accuracyOf(resume.session.attempts)}% accuracy`}
             </p>
           </div>
           <div className="flex gap-2">
@@ -156,27 +152,43 @@ export default function DashboardPage() {
             </Button>
           </div>
         </section>
+      ) : (
+        <section className="panel mb-6 flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
+            <p className="eyebrow mb-1.5">Get started</p>
+            <p className="text-[15px] text-ink-2">Choose a song and start your first practice session.</p>
+          </div>
+          <Button to="/songs" variant="primary" icon={Music}>
+            Go to songs
+          </Button>
+        </section>
       )}
 
       <section className="panel mb-6 grid grid-cols-3 divide-x divide-line">
-        <Stat label="Songs" value={songs.total} hint={songs.processing ? `${songs.processing} in analysis` : null} />
-        <Stat label="Practice sessions" value={totals.sessions} />
-        <Stat label="Time practiced" value={totals.practice_seconds ? formatDuration(totals.practice_seconds) : '0 min'} />
+        <Stat label="Practice time" value={totals.practice_seconds ? formatDuration(totals.practice_seconds) : '0 min'} />
+        <Stat label="Sessions" value={totals.sessions} />
+        <Stat label="Accuracy" value={totals.accuracy == null ? '—' : `${Math.round(totals.accuracy * 100)}%`} hint="All sessions" />
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="panel overflow-hidden">
           <div className="flex items-center justify-between px-5 pt-4 pb-2">
-            <h2 className="text-[15px] font-bold">Recently uploaded</h2>
-            <Link to="/library" className="flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink">
-              Library <ArrowRight size={14} aria-hidden />
-            </Link>
+            <h2 className="text-[15px] font-bold">Recent sessions</h2>
+            {sessions.length > 0 && (
+              <Link to="/sessions" className="flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink">
+                View all <ArrowRight size={14} aria-hidden />
+              </Link>
+            )}
           </div>
-          <ul className="pb-2">
-            {uploads.map((s) => (
-              <SongRow key={s.id} song={s} meta={[s.artist, formatTime(s.duration), formatRelative(s.created_at)].filter(Boolean).join(' · ')} />
-            ))}
-          </ul>
+          {sessions.length ? (
+            <ul className="pb-2">
+              {sessions.map((s) => (
+                <SessionRow key={s.id} session={s} />
+              ))}
+            </ul>
+          ) : (
+            <p className="px-5 pt-6 pb-10 text-center text-[13.5px] text-ink-3">Your practice sessions will appear here.</p>
+          )}
         </section>
 
         <Activity days={activity} />

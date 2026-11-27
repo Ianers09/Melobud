@@ -136,13 +136,15 @@ def test_practice_session_records_browser_judged_attempts(authed, user):
     assert authed.post(url, {"song_time": 3.0, "expected": "C", "result": "maybe"}, format="json").status_code == 400
 
     assert authed.post(url, {"song_time": 7.0, "expected": "G", "result": "missed"}, format="json").status_code == 201
+    # "detected": null (no chord heard) is accepted and stored as blank.
+    assert authed.post(url, {"song_time": 8.0, "expected": "G", "detected": None, "result": "correct"}, format="json").status_code == 201
     summary = authed.patch(f"/api/practice/sessions/{session['id']}/", {}, format="json").json()
-    assert summary["attempts"] == {"correct": 1, "incorrect": 1, "missed": 1}
+    assert summary["attempts"] == {"correct": 2, "incorrect": 1, "missed": 1}
     assert summary["ended_at"]
     assert authed.post(url, {"song_time": 3.0, "expected": "C", "result": "correct"}, format="json").json()["code"] == "ended"
 
     detail = authed.get(f"/api/practice/sessions/{session['id']}/").json()
-    assert [t["result"] for t in detail["timeline"]] == ["correct", "incorrect", "missed"]
+    assert [t["result"] for t in detail["timeline"]] == ["correct", "incorrect", "missed", "correct"]
     assert detail["timeline"][1]["detected"] == "G"
 
 
@@ -172,13 +174,14 @@ def test_history_survives_song_deletion(authed, user):
 
 def test_dashboard_reports_only_real_data(authed, user):
     empty = authed.get("/api/practice/dashboard/").json()
-    assert empty["songs"]["total"] == 0 and empty["totals"] == {"sessions": 0, "practice_seconds": 0}
+    assert empty["songs"]["total"] == 0 and empty["totals"] == {"sessions": 0, "practice_seconds": 0, "accuracy": None}
     assert all(d["minutes"] == 0 for d in empty["activity"]) and len(empty["activity"]) == 14
     song = make_analysed_song(user, [(0, 5, "C", "C", "C")])
     authed.post("/api/practice/sessions/", {"song": song.id, "mode": "step"}, format="json")
     data = authed.get("/api/practice/dashboard/").json()
     assert data["songs"]["ready"] == 1 and data["totals"]["sessions"] == 1
     assert data["recently_practiced"][0]["song"]["id"] == song.id
+    assert data["recent_sessions"][0]["song_id"] == song.id and data["totals"]["accuracy"] is None
 
 
 def test_health_endpoint(client, db):

@@ -67,7 +67,7 @@ export default function SongDetailPage() {
     try {
       await songsApi.remove(song.id)
       toast.success(`“${song.title}” has been deleted.`)
-      navigate('/library', { replace: true })
+      navigate('/songs', { replace: true })
     } catch (err) {
       toast.error(err.message)
       setDeleting(false)
@@ -76,8 +76,8 @@ export default function SongDetailPage() {
 
   return (
     <>
-      <Link to="/library" className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2 hover:text-ink">
-        <ArrowLeft size={15} aria-hidden /> Library
+      <Link to="/songs" className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2 hover:text-ink">
+        <ArrowLeft size={15} aria-hidden /> Songs
       </Link>
 
       {editing ? (
@@ -106,7 +106,7 @@ export default function SongDetailPage() {
             {ready && (
               <>
                 <Button to={`/songs/${song.id}/play`} variant="primary" icon={Play}>
-                  Play with chords
+                  Play
                 </Button>
                 <Button to={`/songs/${song.id}/practice`} icon={Guitar}>
                   Practice
@@ -124,7 +124,7 @@ export default function SongDetailPage() {
               }}
             />
             {(song.status === 'completed' || song.status === 'failed') && (
-              <Button variant="ghost" icon={RotateCcw} aria-label="Analyze again" title="Analyze again" onClick={reanalyze} />
+              <Button variant="ghost" icon={RotateCcw} aria-label="Re-analyze" title="Re-analyze" onClick={reanalyze} />
             )}
             <Button variant="ghost" icon={Trash2} aria-label="Delete song" title="Delete" onClick={() => setConfirmDelete(true)} />
           </div>
@@ -153,7 +153,7 @@ export default function SongDetailPage() {
               </button>
             }
           >
-            {song.status_message || 'The analysis could not be completed. Please try again.'}
+            {song.status_message || 'The analysis could not be completed. Re-analyze to try again.'}
           </Alert>
         </div>
       )}
@@ -164,18 +164,18 @@ export default function SongDetailPage() {
         </Meta>
         <Meta label="Key">{a?.key || '—'}</Meta>
         <Meta label="Tempo">{a?.tempo_bpm ? <span className="tabular">{Math.round(a.tempo_bpm)} BPM</span> : '—'}</Meta>
-        <Meta label="Uploaded">{formatDate(song.created_at)}</Meta>
+        <Meta label="Added">{formatDate(song.created_at)}</Meta>
       </dl>
 
       {ready && (
         <section className="panel p-5">
-          <h2 className="mb-3 text-[15px] font-bold">Chords in this song</h2>
+          <h2 className="mb-3 text-[15px] font-bold">Chords used</h2>
           <ChordChips chords={a.summary?.simple} max={30} />
         </section>
       )}
 
       <ConfirmDialog open={confirmDelete} title="Delete this song?" confirmLabel="Delete song" busy={deleting} onConfirm={remove} onCancel={() => setConfirmDelete(false)}>
-        “{song.title}” and its chord analysis will be permanently deleted. Your practice history will be retained. This action cannot be undone.
+        “{song.title}” and its chord analysis will be permanently deleted. Your sessions for this song are kept. This action cannot be undone.
       </ConfirmDialog>
     </>
   )

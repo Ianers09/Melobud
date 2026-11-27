@@ -110,14 +110,15 @@ export function findIndexAt(timeline, t) {
 export function neighbours(timeline, i) {
   let prev = null
   let next = null
+  const name = timeline[i]?.name
   for (let j = i - 1; j >= 0; j--) {
-    if (!timeline[j].noChord) {
+    if (!timeline[j].noChord && timeline[j].name !== name) {
       prev = timeline[j]
       break
     }
   }
   for (let j = i + 1; j < timeline.length; j++) {
-    if (!timeline[j].noChord) {
+    if (!timeline[j].noChord && timeline[j].name !== name) {
       next = timeline[j]
       break
     }
@@ -259,6 +260,23 @@ export function rowAt(rowData, beats, time) {
     prev: rowData.rows[r - 1]?.chord ?? null,
     next: rowData.rows[r + 1]?.chord ?? null,
   }
+}
+
+/**
+ * Scoring units for practice: one per bar (a counter row: a bar, or the part
+ * of a bar played on one chord), as { name, start, end, index }. Falls back to
+ * the chord timeline when the song has no beat grid.
+ */
+export function barUnits(rowData, beats, timeline) {
+  const rows = rowData?.rows || []
+  if (!rows.length || !beats?.length) return (timeline || []).filter((seg) => !seg.noChord).map((seg, index) => ({ ...seg, index }))
+  const step = beats.length > 1 ? (beats[beats.length - 1] - beats[0]) / (beats.length - 1) : 0.5
+  return rows.map((row, index) => ({
+    name: row.chord,
+    start: beats[row.first],
+    end: beats[row.last + 1] ?? beats[row.last] + step,
+    index,
+  }))
 }
 
 /** Beat indices where a new bar starts (accented by the metronome). */

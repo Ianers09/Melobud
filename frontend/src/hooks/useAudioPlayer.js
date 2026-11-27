@@ -20,6 +20,18 @@ function outputLatency(ctx) {
  * - `audioContext()` returns the shared AudioContext; the metronome schedules
  *   clicks on it so they share the song's output path and latency.
  */
+const VOLUME_KEY = 'melobud.volume'
+
+function loadVolume() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VOLUME_KEY))
+    if (saved && Number.isFinite(saved.volume)) return { volume: Math.min(Math.max(saved.volume, 0), 1), muted: !!saved.muted }
+  } catch {
+    /* storage unavailable */
+  }
+  return { volume: 1, muted: false }
+}
+
 export function useAudioPlayer(src) {
   const audioRef = useRef(null)
   const ctxRef = useRef(null)
@@ -31,6 +43,8 @@ export function useAudioPlayer(src) {
   const [error, setError] = useState(null)
   const [buffering, setBuffering] = useState(false)
   const [rate, setRateState] = useState(1)
+  const [{ volume, muted }, setVolumeState] = useState(loadVolume)
+  const volumeRef = useRef({ volume, muted })
 
   const audioContext = useCallback(() => {
     if (!ctxRef.current && typeof window !== 'undefined' && window.AudioContext) {
@@ -66,6 +80,8 @@ export function useAudioPlayer(src) {
     audio.preload = 'auto'
     audio.src = src
     audio.preservesPitch = true
+    audio.volume = volumeRef.current.volume
+    audio.muted = volumeRef.current.muted
     audioRef.current = audio
 
     const sync = () => {
@@ -152,6 +168,32 @@ export function useAudioPlayer(src) {
     setRateState(r)
   }, [])
 
+  // Volume (0..1) and mute, like a video player. Remembered between visits.
+  useEffect(() => {
+    volumeRef.current = { volume, muted }
+    if (audioRef.current) {
+      audioRef.current.volume = volume
+      audioRef.current.muted = muted
+    }
+    try {
+      localStorage.setItem(VOLUME_KEY, JSON.stringify({ volume, muted }))
+    } catch {
+      /* storage unavailable */
+    }
+  }, [volume, muted])
+  const setVolume = useCallback((v) => {
+    const value = Math.min(Math.max(v, 0), 1)
+    // Dragging the slider up unmutes; dragging it to zero shows as muted.
+    setVolumeState({ volume: value, muted: value === 0 })
+  }, [])
+  const changeVolume = useCallback(
+    (delta) => setVolume((volumeRef.current.muted ? 0 : volumeRef.current.volume) + delta),
+    [setVolume],
+  )
+  const toggleMute = useCallback(() => {
+    setVolumeState(({ volume: v, muted: m }) => (m || v === 0 ? { volume: v === 0 ? 0.5 : v, muted: false } : { volume: v, muted: true }))
+  }, [])
+
   return {
     time,
     duration,
@@ -160,9 +202,14 @@ export function useAudioPlayer(src) {
     error,
     buffering,
     rate,
+    volume,
+    muted,
     play,
     pause,
     toggle,
+    setVolume,
+    changeVolume,
+    toggleMute,
     seek,
     skip,
     setRate,
